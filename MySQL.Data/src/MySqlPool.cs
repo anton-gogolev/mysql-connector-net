@@ -42,7 +42,7 @@ namespace MySql.Data.MySqlClient
   internal sealed class MySqlPool
   {
     private readonly List<Driver> _inUsePool;
-    private readonly Queue<Driver> _idlePool;
+    private readonly Deque<Driver> _idlePool;
     private readonly uint _minSize;
     private readonly uint _maxSize;
     private readonly AutoResetEvent _autoEvent;
@@ -53,7 +53,7 @@ namespace MySql.Data.MySqlClient
     private void EnqueueIdle(Driver driver)
     {
       driver.IdleSince = DateTime.Now;
-      _idlePool.Enqueue(driver);
+      _idlePool.EnqueueFront(driver);
     }
     public MySqlPool(MySqlConnectionStringBuilder settings)
     {
@@ -67,7 +67,7 @@ namespace MySql.Data.MySqlClient
         _minSize = _maxSize;
       this.Settings = settings;
       _inUsePool = new List<Driver>((int)_maxSize);
-      _idlePool = new Queue<Driver>((int)_maxSize);
+      _idlePool = new Deque<Driver>((int)_maxSize);
 
       // prepopulate the idle pool to minSize
       for (int i = 0; i < _minSize; i++)
@@ -111,7 +111,7 @@ namespace MySql.Data.MySqlClient
       lock ((_idlePool as ICollection).SyncRoot)
       {
         if (HasIdleConnections)
-          driver = _idlePool.Dequeue();
+          driver = _idlePool.DequeueFront();
       }
 
       // Obey the connection timeout
@@ -291,7 +291,7 @@ namespace MySql.Data.MySqlClient
         // then we remove all connections sitting in the idle pool
         while (_idlePool.Count > 0)
         {
-          Driver d = _idlePool.Dequeue();
+          Driver d = _idlePool.DequeueFront();
           d.Close();
         }
 
@@ -325,13 +325,13 @@ namespace MySql.Data.MySqlClient
         // too old.
         while (_idlePool.Count > _minSize)
         {
-          Driver d = _idlePool.Peek();
+          Driver d = _idlePool.PeekBack();
           DateTime expirationTime = d.IdleSince.Add(
             new TimeSpan(0, 0, MySqlPoolManager.maxConnectionIdleTime));
           if (expirationTime.CompareTo(now) < 0)
           {
             oldDrivers.Add(d);
-            _idlePool.Dequeue();
+            _idlePool.DequeueBack();
           }
           else
           {

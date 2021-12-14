@@ -83,13 +83,15 @@ namespace MySql.Data.MySqlClient
 
     private static string GetKey(MySqlConnectionStringBuilder settings)
     {
-      string key = "";
-      lock (settings)
-      {
-        key = settings.ConnectionString;
-      }
+      MySqlConnectionStringBuilder connectionStringBuilder;
+      lock(settings)
+        connectionStringBuilder = new MySqlConnectionStringBuilder(settings.GetConnectionString(true));
 
-      if (!settings.IntegratedSecurity || settings.ConnectionReset) return key;
+      connectionStringBuilder.Remove("database");
+
+      string key = connectionStringBuilder.ConnectionString;
+
+      if (!connectionStringBuilder.IntegratedSecurity || connectionStringBuilder.ConnectionReset) return key;
 
       try
       {
